@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Secrets and local config -- never commit these
+.env
+*.pem
+*.key
+.aws/
+
+# Local output from `consumer.py --local-dir`
+data/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
