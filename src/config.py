@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
+# boto3 reads AWS_PROFILE from the environment on its own; an empty value
+# (e.g. "AWS_PROFILE=" in .env) makes it look for a profile named "" and crash.
+if not os.environ.get("AWS_PROFILE", "").strip():
+    os.environ.pop("AWS_PROFILE", None)
+
 
 def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()

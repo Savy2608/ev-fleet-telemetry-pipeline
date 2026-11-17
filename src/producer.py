@@ -260,8 +260,6 @@ class KafkaSink:
         self.topic = topic
         self._producer = KafkaProducer(
             bootstrap_servers=[s.strip() for s in bootstrap_servers.split(",")],
-            key_serializer=lambda k: k.encode("utf-8"),
-            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             acks="all",  # wait for the broker to persist the record
             retries=5,
             linger_ms=20,  # tiny batching window: one tick = 20 records in a few requests
@@ -269,7 +267,11 @@ class KafkaSink:
 
     def send(self, event: dict) -> None:
         # Keying by vehicle_id keeps each vehicle's readings ordered within one partition.
-        future = self._producer.send(self.topic, key=event["vehicle_id"], value=event)
+        future = self._producer.send(
+            self.topic,
+            key=event["vehicle_id"].encode("utf-8"),
+            value=json.dumps(event).encode("utf-8"),
+        )
         future.add_errback(lambda exc: logger.error("Failed to deliver %s: %s", event["event_id"], exc))
 
     def flush(self) -> None:
@@ -299,6 +301,7 @@ def _raise_keyboard_interrupt(signum, frame):  # noqa: ARG001
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s | %(message)s")
+    logging.getLogger("kafka").setLevel(logging.WARNING)  # kafka-python is chatty at INFO
     signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
 
     settings = load_settings()
