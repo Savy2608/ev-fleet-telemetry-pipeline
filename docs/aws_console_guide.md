@@ -1,7 +1,8 @@
 # AWS Console Setup Guide
 
 Click-by-click setup for every AWS piece of the pipeline. Use the **same region**
-for everything (this guide uses `us-east-1`, N. Virginia).
+for everything (this guide uses `us-east-2`, US East (Ohio)). Check the region selector
+in the top-right corner before each step; IAM shows "Global" instead, which is normal.
 
 > **Cost tip:** a `t3.small` costs about $0.02/hour. Stop the instance when you're
 > not using it, and see [Cleanup](#8-cleanup-avoid-surprise-charges) when you're done.
@@ -40,7 +41,7 @@ for everything (this guide uses `us-east-1`, N. Virginia).
 
 1. **EC2 → Instances → Launch instances**
 2. Name: `ev-kafka-broker`
-3. AMI: **Ubuntu Server 24.04 LTS** (64-bit x86)
+3. AMI: **Ubuntu Server 24.04 or 26.04 LTS** (64-bit x86)
 4. Instance type: **t3.small** (2 GB RAM). `t2.micro`/`t3.micro` (free tier) works
    too thanks to the small heap set in the setup script, but is less stable.
 5. Key pair: `ev-kafka-key`
@@ -63,9 +64,12 @@ bash ec2_setup_commands.sh
 ## 4. S3 bucket
 
 1. **S3 → Create bucket**
-2. Name must be globally unique, e.g. `ev-fleet-telemetry-<yourname>-2026`
-3. Region: same as EC2. Keep **Block all public access** ON. → Create.
-4. Inside the bucket, create a folder `athena-results/` (Athena writes query output here).
+2. Bucket type **General purpose**, Bucket namespace **Global namespace** (the
+   account-regional option may change the final bucket name, which the IAM policy and
+   `.env` must match exactly).
+3. Name must be globally unique, e.g. `ev-fleet-telemetry-<yourname>-2026`
+4. Region: **US East (Ohio) us-east-2**, same as EC2. Keep **Block all public access** ON. → Create.
+5. Inside the bucket, create a folder `athena-results/` (Athena writes query output here).
 
 Data will land under `s3://<bucket>/raw/ev_telemetry/year=…/month=…/day=…/hour=…/`.
 
@@ -73,7 +77,7 @@ Data will land under `s3://<bucket>/raw/ev_telemetry/year=…/month=…/day=…/
 
 The consumer on your Mac needs permission to write to the bucket.
 
-1. **IAM → Users → Create user** → name `ev-pipeline-local` (no console access).
+1. **IAM → Users → Create user** → name `ev-telemetry-dev` (no console access).
 2. **Attach policies directly → Create policy → JSON**, paste (replace the bucket name):
    ```json
    {
@@ -93,11 +97,13 @@ The consumer on your Mac needs permission to write to the bucket.
    }
    ```
    Name it `ev-pipeline-s3-write`, then attach it to the user.
-3. Open the user → **Security credentials → Create access key → Command Line Interface**.
+3. Open the user → **Security credentials → Create access key → Command Line Interface**
+   → **Download .csv file**. The secret is shown only once. Don't screenshot or share it;
+   if it leaks, create a new key and deactivate and delete the old one.
 4. On your Mac (never put these keys in code or in git):
    ```bash
    brew install awscli
-   aws configure          # paste the key, secret, region us-east-1, output json
+   aws configure          # paste the key, secret, region us-east-2, output json
    aws s3 ls s3://ev-fleet-telemetry-<yourname>-2026   # should succeed (empty output is fine)
    ```
 
@@ -138,4 +144,4 @@ Run the producer and consumer for a few minutes first so the crawler has files t
    an unattached Elastic IP is billed).
 2. S3: **Empty** then **Delete** the bucket.
 3. Glue: delete the crawler, table and database.
-4. IAM: delete the `ev-pipeline-local` user's access key (or the whole user).
+4. IAM: delete the `ev-telemetry-dev` user's access key (or the whole user).

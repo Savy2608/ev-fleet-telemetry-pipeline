@@ -50,7 +50,7 @@ def load_settings() -> Settings:
         max_interval_seconds=float(_env("MAX_INTERVAL_SECONDS", "2.0")),
         s3_bucket=_env("S3_BUCKET"),
         s3_prefix=_env("S3_PREFIX", "raw/ev_telemetry").strip("/"),
-        aws_region=_env("AWS_REGION", "us-east-1"),
+        aws_region=_env("AWS_REGION", "us-east-2"),
         aws_profile=_env("AWS_PROFILE"),
         batch_size=max(1, int(_env("BATCH_SIZE", "1"))),
         flush_interval_seconds=float(_env("FLUSH_INTERVAL_SECONDS", "10")),

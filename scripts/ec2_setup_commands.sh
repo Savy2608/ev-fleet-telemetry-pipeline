@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Kafka + ZooKeeper setup on an Ubuntu EC2 instance (Ubuntu 22.04 / 24.04).
+# Kafka + ZooKeeper setup on an Ubuntu EC2 instance (Ubuntu 22.04 / 24.04 / 26.04).
 #
 # Run it ON THE EC2 INSTANCE, either all at once:
 #     scp -i ~/.ssh/ev-kafka-key.pem scripts/ec2_setup_commands.sh ubuntu@<EC2_PUBLIC_IP>:~
