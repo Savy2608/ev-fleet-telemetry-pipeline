@@ -18,3 +18,8 @@ data/
 .DS_Store
 .vscode/
 .idea/
+
+# Extra secret patterns
+.env.*
+!.env.example
+*.log
