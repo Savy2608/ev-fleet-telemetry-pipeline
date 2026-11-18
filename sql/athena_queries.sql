@@ -5,6 +5,8 @@
 -- (the table name comes from the S3 folder raw/ev_telemetry/).
 -- Partition columns year/month/day/hour are strings; always filter on them so
 -- Athena only scans the partitions you need (you pay per TB scanned).
+-- The queries look at a rolling 24-hour window rather than "today", because the
+-- UTC date rolls over in the afternoon/evening in US time zones.
 --
 -- Notes:
 --   * "timestamp" is a reserved word in Athena, so it must be double-quoted.
@@ -23,8 +25,8 @@ LIMIT 24;
 
 
 -- -----------------------------------------------------------------------------
--- 1. Battery overheating: which vehicles went above 45 °C today, how often,
---    how hot, and what were they doing at the time?
+-- 1. Battery overheating: which vehicles went above 45 °C in the last 24 hours,
+--    how often, how hot, and what were they doing at the time?
 --    (EV-007 and EV-014 have a simulated faulty cooling system.)
 -- -----------------------------------------------------------------------------
 SELECT
@@ -36,17 +38,17 @@ SELECT
     MAX(from_iso8601_timestamp("timestamp"))          AS last_seen_utc,
     array_join(array_agg(DISTINCT charging_status), ', ') AS status_while_overheating
 FROM ev_fleet_db.ev_telemetry
-WHERE year  = date_format(current_date, '%Y')
-  AND month = date_format(current_date, '%m')
-  AND day   = date_format(current_date, '%d')
+WHERE from_iso8601_timestamp("timestamp") >= current_timestamp - INTERVAL '24' HOUR
+  -- partition filter: only today's and yesterday's (UTC) folders are read
+  AND concat(year, '-', month, '-', day) >= date_format(current_date - INTERVAL '1' DAY, '%Y-%m-%d')
   AND battery_temp_c > 45
 GROUP BY vehicle_id
 ORDER BY overheat_readings DESC;
 
 
 -- -----------------------------------------------------------------------------
--- 2. Charging-station overload: per station, how many minutes today had more
---    vehicles charging than the station has ports?
+-- 2. Charging-station overload: per station, how many minutes in the last 24 hours
+--    had more vehicles charging than the station has ports?
 --    Port counts mirror STATIONS in src/producer.py.
 -- -----------------------------------------------------------------------------
 WITH station_capacity (station_id, station_name, ports) AS (
@@ -64,9 +66,9 @@ charging_per_minute AS (
         date_trunc('minute', from_iso8601_timestamp("timestamp")) AS minute_utc,
         COUNT(DISTINCT vehicle_id)                                AS vehicles_charging
     FROM ev_fleet_db.ev_telemetry
-    WHERE year  = date_format(current_date, '%Y')
-      AND month = date_format(current_date, '%m')
-      AND day   = date_format(current_date, '%d')
+    WHERE from_iso8601_timestamp("timestamp") >= current_timestamp - INTERVAL '24' HOUR
+      -- partition filter: only today's and yesterday's (UTC) folders are read
+      AND concat(year, '-', month, '-', day) >= date_format(current_date - INTERVAL '1' DAY, '%Y-%m-%d')
       AND charging_status IN ('CHARGING', 'FAST_CHARGING')
       AND station_id IS NOT NULL
     GROUP BY 1, 2
@@ -87,7 +89,8 @@ ORDER BY overloaded_minutes DESC, peak_utilization_pct DESC;
 
 
 -- -----------------------------------------------------------------------------
--- 3. Fleet snapshot: the latest reading for every vehicle, lowest battery first.
+-- 3. Fleet snapshot: the latest reading (within the last 24 hours) for every
+--    vehicle, lowest battery first.
 --    Useful as a "live" dashboard table (who needs to charge right now?).
 -- -----------------------------------------------------------------------------
 WITH ranked AS (
@@ -96,9 +99,9 @@ WITH ranked AS (
         ROW_NUMBER() OVER (PARTITION BY vehicle_id
                            ORDER BY from_iso8601_timestamp("timestamp") DESC) AS rn
     FROM ev_fleet_db.ev_telemetry
-    WHERE year  = date_format(current_date, '%Y')
-      AND month = date_format(current_date, '%m')
-      AND day   = date_format(current_date, '%d')
+    WHERE from_iso8601_timestamp("timestamp") >= current_timestamp - INTERVAL '24' HOUR
+      -- partition filter: only today's and yesterday's (UTC) folders are read
+      AND concat(year, '-', month, '-', day) >= date_format(current_date - INTERVAL '1' DAY, '%Y-%m-%d')
 )
 SELECT
     vehicle_id,
